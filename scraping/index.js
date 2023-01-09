@@ -16,7 +16,6 @@ async function scrape(url) {
 async function getLeaderBoard() {
   const $ = await scrape(URLS.leaderboard);
   const $rows = $('table tbody tr')
-  // const LEADERBOARD_SELECTORS_PREFIX = "table tbody tr";
 
   const LEADERBOARD_SELECTORS = {
     team: {selector: ".fs-table-text_3", typeOf: 'string'},
