@@ -1,52 +1,63 @@
-import * as cheerio from "cheerio";
-import fetch from "node-fetch";
-import {writeFile} from "node:fs/promises";
-import path from "node:path";
+import * as cheerio from 'cheerio'
+import fetch from 'node-fetch'
+import { writeFile, readFile } from 'node:fs/promises'
+import path from 'node:path'
+
+const DB_PATH = path.join(process.cwd(), './db/')
+const teams = await readFile(`${DB_PATH}/Teams.json`, 'utf-8')
+const TEAMS = JSON.parse(teams)
 
 const URLS = {
-  leaderboard: "https://kingsleague.pro/estadisticas/clasificacion/",
-};
-
-async function scrape(url) {
-  const res = await fetch(url);
-  const html = await res.text();
-  return cheerio.load(html);
+  leaderboard: 'https://kingsleague.pro/estadisticas/clasificacion/'
 }
 
-async function getLeaderBoard() {
-  const $ = await scrape(URLS.leaderboard);
+async function scrape (url) {
+  const res = await fetch(url)
+  const html = await res.text()
+  return cheerio.load(html)
+}
+
+async function getLeaderBoard () {
+  const $ = await scrape(URLS.leaderboard)
   const $rows = $('table tbody tr')
 
   const LEADERBOARD_SELECTORS = {
-    team: {selector: ".fs-table-text_3", typeOf: 'string'},
-    wins: {selector: ".fs-table-text_4", typeOf: 'number'},
-    loses: {selector: ".fs-table-text_5", typeOf: 'number'},
-    scoredGoals: {selector: ".fs-table-text_6", typeOf: 'number'},
-    concededGoals: {selector: ".fs-table-text_7", typeOf: 'number'},
-    yellowCards: {selector: ".fs-table-text_8", typeOf: 'number'},
-    redCards: {selector: ".fs-table-text_9", typeOf: 'number'},
-  };
+    team: { selector: '.fs-table-text_3', typeOf: 'string' },
+    wins: { selector: '.fs-table-text_4', typeOf: 'number' },
+    loses: { selector: '.fs-table-text_5', typeOf: 'number' },
+    scoredGoals: { selector: '.fs-table-text_6', typeOf: 'number' },
+    concededGoals: { selector: '.fs-table-text_7', typeOf: 'number' },
+    yellowCards: { selector: '.fs-table-text_8', typeOf: 'number' },
+    redCards: { selector: '.fs-table-text_9', typeOf: 'number' }
+  }
+
+  const getTeamFrom = ({ name }) => TEAMS.find(team => team.name === name)
 
   const clearText = (text) =>
-    text.replace(/\t|\n|\s:/g, "").replace(/.*:/g, " ");
+    text.replace(/\t|\n|\s:/g, '').replace(/.*:/g, ' ').trim()
 
   const leaderBoardSelectorEntries = Object.entries(LEADERBOARD_SELECTORS)
-  const leaderBoard = []
-  $rows.each((index, el) => {
+  const leaderboard = []
+  $rows.each((_, el) => {
     const leaderBoardEntries = leaderBoardSelectorEntries.map(
-      ([key,{selector,typeOf}]) => {
-        const rawValue = $(el).find(selector).text();
+      ([key, { selector, typeOf }]) => {
+        const rawValue = $(el).find(selector).text()
         const cleanValue = clearText(rawValue)
-        const value = typeOf === 'number'? Number(cleanValue):cleanValue;
-        return [key, value];
+        const value = typeOf === 'number' ? Number(cleanValue) : cleanValue
+        return [key, value]
       }
-    );
-    leaderBoard.push(Object.fromEntries(leaderBoardEntries))
-    // console.log(Object.fromEntries(leaderBoardEntries))
+    )
+
+    const { team: teamName, ...leaderboardForTeam } = Object.fromEntries(leaderBoardEntries)
+    const team = getTeamFrom({ name: teamName })
+
+    leaderboard.push({
+      ...leaderboardForTeam,
+      team
+    })
   })
-  return leaderBoard;
+  return leaderboard
 }
 
-const leaderBoard = await getLeaderBoard();
-const filePath = path.join(process.cwd(),'db','leaderboard.json');
-await writeFile(filePath, JSON.stringify(leaderBoard,null,2),'utf-8')
+const leaderboard = await getLeaderBoard()
+await writeFile(`${DB_PATH}/leaderboard.json`, JSON.stringify(leaderboard, null, 2), 'utf-8')
